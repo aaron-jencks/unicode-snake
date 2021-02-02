@@ -1,122 +1,80 @@
-import os
-import random as rnd
+from game import SnakeGame
+import pygame
 import time
 
-import kbutils as kb
-
-
-class SnakeBoard:
-    def __init__(self, rows: int, columns: int):
-        self.rows = rows
-        self.columns = columns
-        self.vertices = []
-        self.odd_column = False
-
-        self.buff = []
-        for _ in range(self.rows):
-            self.buff.append([' ' for _ in range(self.columns)])
-
-    def initialize(self):
-        for r in range(self.rows):
-            for c in range(self.columns):
-                self.buff[r][c] = ' '
-        self.odd_column = (self.columns >> 1) % 2 == 1
-        self.buff[self.rows >> 1][self.columns >> 1] = '\u25cb'
-        self.vertices = [(self.rows >> 1, self.columns >> 1)]
-
-    def place_food(self):
-        while True:
-            r = rnd.randint(0, self.rows - 1)
-            c = rnd.randint(0, self.columns - 1)
-            codd = c % 2 == 1
-            if (codd and self.odd_column or not codd and not self.odd_column) and self.buff[r][c] != '\u25cb':
-                self.buff[r][c] = '\u25c9'
-                break
-
-    def tick(self, direction: int) -> bool:
-        nr, nc = self.vertices[-1]
-
-        if direction == 0:
-            nr -= 1
-        elif direction == 1:
-            nc += 2
-        elif direction == 2:
-            nr += 1
-        elif direction == 3:
-            nc -= 2
-        else:
-            print("Invalid direction for snake")
-            exit(1)
-
-        if nr >= self.rows or nc >= self.columns or nr < 0 or nc < 0 or self.buff[nr][nc] == '\u25cb':
-            return False
-
-        self.vertices.append((nr, nc))
-        self.vertices.pop(0)
-        return True
-
-
-class SnakeGame(SnakeBoard):
-    def __init__(self, rows: int, columns: int):
-        super().__init__(rows, columns)
-        self.score = 0
-        self.direction = 0
-        self.initialize()
-        self.place_food()
-
-    def tick(self, direction: int = -1) -> bool:
-        v = super().tick(self.direction if direction < 0 else direction)
-
-        if self.buff[self.vertices[-1][0]][self.vertices[-1][1]] == '\u25c9':
-            self.score += 1
-            self.vertices.append(self.vertices[-1])
-            self.place_food()
-
-        for r in range(self.rows):
-            for c in range(self.columns):
-                if (r, c) in self.vertices:
-                    self.buff[r][c] = '\u25cb'
-                elif self.buff[r][c] != '\u25c9' and self.buff[r][c] != ' ':
-                    self.buff[r][c] = ' '
-        return v
-
-    def __str__(self):
-        result = ''
-        for r in self.buff:
-            for c in r:
-                result += c
-            result += '\033[E'
-        return result + 'Score: {}'.format(self.score)
-
+pygame.init()
 
 if __name__ == '__main__':
-    size = os.get_terminal_size()
-    game = SnakeGame(size.lines - 1, size.columns)
+    size = [800, 600]
+    screen = pygame.display.set_mode(size)
+    g = SnakeGame(size[1] // 10, size[0] // 10)
+    g.initialize()
+    g.place_food()
+    game_surf = pygame.Surface(size)
+    font = pygame.font.SysFont('roboto', 16)
 
-    print("\033[2J\033[H{}", game)
-    time.sleep(1 / 10)
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                kp = event.key
+                if kp == pygame.K_a:
+                    g.direction = 3
+                elif kp == pygame.K_s:
+                    g.direction = 2
+                elif kp == pygame.K_d:
+                    g.direction = 1
+                elif kp == pygame.K_w:
+                    g.direction = 0
+                elif kp == pygame.K_ESCAPE:
+                    running = False
 
-    while True:
-        k = kb.get_char()
+        game_surf.fill((255, 255, 255))
 
-        if k == 'a':
-            game.direction = 3
-        elif k == 's':
-            game.direction = 2
-        elif k == 'd':
-            game.direction = 1
-        elif k == 'w':
-            game.direction = 0
+        for ri, r in enumerate(g.buff):
+            for ci, c in enumerate(r):
+                if c == '\u25cb':
+                    # print("Drawing a snake at {}, {}".format(ri * 10, ci * 10))
+                    pygame.draw.circle(game_surf,
+                                       (0, 0, 255),
+                                       ((ci * 10) + 5, (ri * 10) + 5),
+                                       5)
+                elif c == '\u25c9':
+                    # wprint("Placing food at {}, {}".format(ci, ri))
+                    pygame.draw.circle(game_surf,
+                                       (0, 127, 255),
+                                       ((ci * 10) + 5, (ri * 10) + 5),
+                                       5)
 
-        if game.tick():
-            print("\033[2J\033[H{}", game)
-            time.sleep(1 / ((int(game.score / 10 + 1)) * 10))
+        timg = font.render("Score: {}, Level: {}".format(g.score, g.score // 10 + 1), True, (0, 0, 0))
+
+        screen.blit(game_surf, (0, 0))
+        screen.blit(timg, (0, 0))
+        pygame.display.flip()
+
+        if g.tick():
+            time.sleep(1 / ((int(g.score / 10 + 1)) * 10))
         else:
-            print("\033[2J\033[HGame Over!\nScore: {}".format(game.score))
-            r = input("Would you like to play again?: ")
-            if r[0] == 'y' or r[0] == 'Y':
-                game.initialize()
-                game.place_food()
-                game.score = 0
-                continue
-            break
+            timg = font.render("Game Over! Would you like to try again?", True, (0, 0, 0))
+            screen.blit(timg, ((size[0] >> 1) - 150, size[1] >> 1))
+            timg = font.render("Yes", True, (0, 0, 0))
+            btn_pos = ((size[0] >> 1) - 25, (size[1] >> 1) + 20)
+            screen.blit(timg, btn_pos)
+            pygame.display.flip()
+
+            while True:
+                event = pygame.event.wait()
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    mx, my = pygame.mouse.get_pos()
+                    if btn_pos[0] - 5 <= mx <= btn_pos[0] + 30 and btn_pos[1] - 5 <= my <= btn_pos[1] + 20:
+                        g.initialize()
+                        g.place_food()
+                        g.score = 0
+                        break
+
+    pygame.quit()
