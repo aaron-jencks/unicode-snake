@@ -1,4 +1,5 @@
 import random as rnd
+import threading
 
 
 class SnakeBoard:
@@ -57,6 +58,7 @@ class SnakeGame(SnakeBoard):
         super().__init__(rows, columns)
         self.score = 0
         self.direction = 0
+        self.lock = threading.Lock()
         self.initialize()
         self.place_food()
 
@@ -71,9 +73,11 @@ class SnakeGame(SnakeBoard):
         for r in range(self.rows):
             for c in range(self.columns):
                 if (r, c) in self.vertices:
-                    self.buff[r][c] = '\u25cb'
+                    with self.lock:
+                        self.buff[r][c] = '\u25cb'
                 elif self.buff[r][c] != '\u25c9' and self.buff[r][c] != ' ':
-                    self.buff[r][c] = ' '
+                    with self.lock:
+                        self.buff[r][c] = ' '
         return v
 
     def __str__(self):
